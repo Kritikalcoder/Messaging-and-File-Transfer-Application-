@@ -1,0 +1,23 @@
+To compile: (in this order)
+>>javac Client.java
+>>javac Server.java
+>>Javac Peer.java
+
+The folder will then have the corresponding "*.class" files.
+
+To run:
+Open two terminals T1 and T2.
+T1: java Peer <port_self> <port_friend> <username> <friendname>			( Command line arguments )
+T2: java Peer <port_self> <port_friend> <username> <friendname>			( Command line arguments )
+
+For example,
+T1: java Peer 5000 6000 Alice Bob
+T2: java Peer 6000 5000 Bob Alice
+
+Wait for upto ten seconds for both systems to connect to the other, independently. Once both systems connect, use the following functionality.
+Messaging: Type your message at a prompt (>>) and it will appear as a sent message on your friend's prompt.
+File transfer:
+1. TCP:
+Format: Sending <filepath> TCP
+2. UDP:
+Format: Sending <filepath> UDP
