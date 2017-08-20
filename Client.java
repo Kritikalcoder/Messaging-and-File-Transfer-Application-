@@ -5,16 +5,19 @@ import java.nio.*;
 public class Client extends Thread {
     // initialize socket and input output streams
     private Socket socket            = null;
+    private DatagramSocket socketUDP = null;
     private DataInputStream  input   = null;
     private DataOutputStream out     = null;
 
     private FileInputStream fileIn   = null;
-    private int peer_port;
+    private int peerPort;
+    private int peerUDP;
     private String person;
     private String friend;
     //constructor
-    public Client (int peer_port, String person, String friend) {
-        this.peer_port = peer_port;
+    public Client (int peerPort, int peerUDP ,String person, String friend) {
+        this.peerPort = peerPort;
+        this.peerUDP = peerUDP;
         this.person = person;
         this.friend = friend;
     }
@@ -26,11 +29,12 @@ public class Client extends Thread {
         catch (InterruptedException e) {
             System.out.println(e);
         }
-        System.out.println("Client thread - " + peer_port);
+        System.out.println("Client thread - " + peerPort);
 
         // establish a connection
         try {
-            socket = new Socket("localhost", peer_port);
+            socket = new Socket("localhost", peerPort);
+            socketUDP = new DatagramSocket(); // UDP socket to connect to server
             System.out.println("Connected");
 
             // takes input from terminal
@@ -76,9 +80,10 @@ public class Client extends Thread {
         }
         // close the connection
         try {
-            input.close();
+            //input.close();
             out.close();
             socket.close();
+            socketUDP.close();
         }
         catch(IOException i) {
             System.out.println(i);
@@ -149,6 +154,7 @@ public class Client extends Thread {
 
             File tempFile = new File(filename);
             long fileSize = tempFile.length();
+            //System.out.println("File size = " + fileSize);
             String fSize = Long.toString(fileSize);
             int sizeOfFile = Integer.parseInt(fSize);
             out.writeUTF(fSize);
@@ -157,16 +163,17 @@ public class Client extends Thread {
             fileIn = new FileInputStream(filename);
 
             byte[] buffer = new byte[4096];
-            int transferPercent = 0;
+            long transferPercent = 0;
             int count = 0;
             String progress = ">          ";
-            int totalRead = 0;
-            int remaining = sizeOfFile;
+            long totalRead = 0;
+            long remaining = fileSize;
             while ((count = fileIn.read(buffer)) > 0) {
                 totalRead += count;
                 remaining -= count;
                 out.write(buffer, 0, count);
-                transferPercent = ( totalRead / sizeOfFile ) * 100;
+                transferPercent = ( totalRead / fileSize ) * 100;
+                transferPercent = (transferPercent / 2) * 2;
                 progress = displayBar(transferPercent);
                 System.out.print("Sending " + filename + " [" + progress + "] " + transferPercent + "%\r");
             }
@@ -180,13 +187,56 @@ public class Client extends Thread {
     }
 
     public void sendFileUDP (String command) {
-        System.out.print("UDP function\n");
+        try {
+            String[] input_array = command.split(" ");
+            int size = input_array.length;
+            for (int i=0; i<size; i++) {
+                input_array[i] = input_array[i].trim();
+                input_array[i] = input_array[i].replaceAll("\n","");
+            }
+            String filename = input_array[1];
+            System.out.print("UDP function\n");
+
+            File tempFile = new File(filename);
+            long fileSize = tempFile.length();
+            String fSize = Long.toString(fileSize);
+            int sizeOfFile = Integer.parseInt(fSize);
+            out.writeUTF(fSize);            // very important - sending file size via TCP
+            long packetCount = (fileSize/4096) + 1;
+
+            //DatagramPacket sendPkt = new DatagramPacket(buffer, buffer.length, InetAddress.getByName("localhost"), peerUDP);
+            fileIn = new FileInputStream(filename);
+
+            byte[] buffer = new byte[4096];
+            long transferPercent = 0;
+            int count = 0;
+            String progress = ">          ";
+            long totalRead = 0;
+            long remaining = fileSize;
+
+            while ((count = fileIn.read(buffer)) > 0) {
+                totalRead += count;
+                remaining -= count;
+                DatagramPacket sendPkt = new DatagramPacket(buffer, buffer.length, InetAddress.getByName("localhost"), peerUDP);
+                socketUDP.send(sendPkt);
+                transferPercent = ( totalRead / fileSize ) * 100;
+                transferPercent = (transferPercent / 2) * 2;
+                progress = displayBar(transferPercent);
+                System.out.print("Sending " + filename + " [" + progress + "] " + transferPercent + "%\r");
+            }
+            System.out.println("\nSent file");            
+            fileIn.close();
+                
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
 
         System.out.println("Sent file");
     }
 
-    public String displayBar (int value) {
-        int fraction = value/10;
+    public String displayBar (long value) {
+        int fraction = (int) value/10;
         String display = ">          ";
         //int remainder = value%10;
         switch (fraction) {

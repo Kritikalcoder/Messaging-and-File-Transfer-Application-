@@ -7,25 +7,30 @@ public class Server extends Thread {
 	//initialize socket and input stream
     private Socket          socket   = null;
     private ServerSocket    server   = null;
+    private DatagramSocket  socketUDP = null;
     private DataInputStream in       = null;
 
     private FileOutputStream fileOut = null;
  	private String person;
     private String friend;
-	private int self_port;
-	public Server (int self_port, String person, String friend) {
-		this.self_port = self_port;
+	private int selfPort;
+	private int portUDP;
+	public Server (int selfPort, int portUDP, String person, String friend) {
+		this.selfPort = selfPort;
+		this.portUDP = portUDP;
 		this.person = person;
 		this.friend = friend;
 	}
 
 	public void run() {
-        System.out.println("Server thread - " + self_port);	
+        System.out.println("Server thread - " + selfPort);	
 
         // starts server and waits for a connection
         try
         {
-            server = new ServerSocket(self_port);
+            server = new ServerSocket(selfPort);
+            socketUDP = new DatagramSocket(portUDP,InetAddress.getByName("localhost"));
+
             System.out.println("Server started");
  
             System.out.println("Waiting for a client ...");
@@ -75,6 +80,7 @@ public class Server extends Thread {
  			System.out.print(">>");
             // close connection
             socket.close();
+            socketUDP.close();
             in.close();
         }
         catch(IOException i)
@@ -133,20 +139,25 @@ public class Server extends Thread {
             int sizeOfFile = Integer.parseInt(fSize);
             long packetCount = (fileSize/4096) + 1;
 
-            //// make tons of changes in this function :D
-			//DataInputStream dis = new DataInputStream(socket.getInputStream());
 			FileOutputStream fileOut = new FileOutputStream(filename);
 			byte[] buffer = new byte[4096];
 			
 			int read = 0;
-			int totalRead = 0;
-			int remaining = sizeOfFile;
-			int transferPercent = 0;
+			long totalRead = 0;
+			long remaining = fileSize;
+			long transferPercent = 0;
+			int choice = 0;
+			if (remaining > 4096) choice = buffer.length;
+			else choice = (int) remaining;
 			String progress = ">          ";
-			while((read = in.read(buffer, 0, Math.min(buffer.length, remaining))) > 0) {
+			while((read = in.read(buffer, 0, choice)) > 0) {
+				//Math.min(buffer.length, (int) remaining)
 				totalRead += read;
-				transferPercent = (totalRead/sizeOfFile) * 100;
+				transferPercent = (totalRead/fileSize) * 100;
+				transferPercent = (transferPercent / 2) * 2;
 				remaining -= read;
+				if (remaining > 4096) choice = buffer.length;
+				else choice = (int) remaining;
 				progress = displayBar(transferPercent);
 				System.out.print("Receiving " + filename + " [" + progress + "] " + transferPercent + "%\r");
 				fileOut.write(buffer, 0, read);
@@ -160,12 +171,75 @@ public class Server extends Thread {
 	}
 
 	private void saveFileUDP(String command) {
-		System.out.println("UDP");
-        System.out.println("Received file");
+		try {
+			String[] input_array = command.split(" ");
+            int size = input_array.length;
+            for (int i=0; i<size; i++) {
+                input_array[i] = input_array[i].trim();
+                input_array[i] = input_array[i].replaceAll("\n","");
+            }
+            String filename = input_array[1];
+            System.out.print("UDP function\n");
+            
+            String fSize = in.readUTF();		//very important - file size received using TCP
+            long fileSize = Long.parseLong(fSize);
+            int sizeOfFile = Integer.parseInt(fSize);
+            long packetCount = (fileSize/4096) + 1;
+
+			byte[] buffer = new byte[4096];
+			DatagramPacket rcvPkt = new DatagramPacket(buffer,buffer.length);
+			fileOut = new FileOutputStream(filename);
+
+			int read = 0;
+			long totalRead = 0;
+			long remaining = fileSize;
+			long transferPercent = 0;
+			int choice = 0;
+			String progress = ">          ";
+
+			do {
+				//(read = in.read(buffer, 0, choice)) > 0
+				rcvPkt = new DatagramPacket(buffer,buffer.length);
+				socketUDP.receive(rcvPkt);
+				read = rcvPkt.getLength();
+				//buffer = rcvPkt.getData();
+            	totalRead += read;
+				transferPercent = (totalRead/fileSize) * 100;
+				transferPercent = (transferPercent / 2) * 2;
+				remaining -= read;
+				progress = displayBar(transferPercent);
+				System.out.print("Receiving " + filename + " [" + progress + "] " + transferPercent + "%\r");
+				fileOut.write(buffer, 0, read);
+			} while ((read = rcvPkt.getLength()) > 0); 
+
+			/*
+			
+			while ((read = rcvPkt.getLength()) > 0) {
+				//(read = in.read(buffer, 0, choice)) > 0
+				rcvPkt = new DatagramPacket(buffer,buffer.length);
+				socketUDP.receive(rcvPkt);
+				//read = rcvPkt.getLength();
+				buffer = rcvPkt.getData();
+            	totalRead += read;
+				transferPercent = (totalRead/fileSize) * 100;
+				transferPercent = (transferPercent / 2) * 2;
+				remaining -= read;
+				progress = displayBar(transferPercent);
+				System.out.print("Receiving " + filename + " [" + progress + "] " + transferPercent + "%\r");
+				fileOut.write(buffer, 0, read);
+			}
+			*/
+
+            System.out.println("\nReceived file");
+			fileOut.close();
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
-	public String displayBar (int value) {
-        int fraction = value/10;
+	public String displayBar (long value) {
+        int fraction = (int) value/10;
         String display = ">          ";
         //int remainder = value%10;
         switch (fraction) {
