@@ -14,6 +14,7 @@ public class Client extends Thread {
     private int peerUDP;
     private String person;
     private String friend;
+
     //constructor
     public Client (int peerPort, int peerUDP ,String person, String friend) {
         this.peerPort = peerPort;
@@ -29,13 +30,11 @@ public class Client extends Thread {
         catch (InterruptedException e) {
             System.out.println(e);
         }
-        System.out.println("Client thread - " + peerPort);
 
         // establish a connection
         try {
             socket = new Socket("localhost", peerPort);
-            socketUDP = new DatagramSocket(); // UDP socket to connect to server
-            System.out.println("Connected");
+            System.out.println("Connected to " + friend);
 
             // takes input from terminal
             input  = new DataInputStream(System.in);
@@ -52,25 +51,27 @@ public class Client extends Thread {
 
         // string to read message from input
         String line = "";
- 
+        System.out.print(">>");
         // keep reading until "Over" is input
         while (!line.equals("Over"))
         {
             try
             {
-                System.out.print(">>");
                 line = input.readLine();
                 int flag = isInputValid (line);
                 if (flag==1) {
                     out.writeUTF(line);
+                    System.out.print(">>");
                 }
                 else if (flag==2) {
                     out.writeUTF(line);
                     sendFileTCP (line);
+                    System.out.print(">>");
                 }
                 else if (flag==3) {
                     out.writeUTF(line);
                     sendFileUDP (line);
+                    System.out.print(">>");
                 }                
             }
             catch(IOException i)
@@ -80,13 +81,13 @@ public class Client extends Thread {
         }
         // close the connection
         try {
-            //input.close();
+            input.close();
             out.close();
             socket.close();
-            socketUDP.close();
         }
         catch(IOException i) {
-            System.out.println(i);
+            //System.out.println(i);
+            System.out.println("Error in input/output");
         }
 
     }
@@ -101,10 +102,8 @@ public class Client extends Thread {
                 for (int i=0; i<size; i++) {
                     input_array[i] = input_array[i].trim();
                     input_array[i] = input_array[i].replaceAll("\n","");
-                    //System.out.println("Token:" + i + "::" + input_array[i]+":EOT");
                 }
                 if (input_array[0].equals("Sending")) {
-                    //System.out.print("Parsed string:" + input_array[0] + input_array[1] + input_array[2]);
                     if (input_array[2].equals("TCP") || input_array[2].equals("UDP")) {
                         File tempFile = new File(input_array[1]);
                         boolean exists = tempFile.exists();
@@ -147,14 +146,11 @@ public class Client extends Thread {
             for (int i=0; i<size; i++) {
                 input_array[i] = input_array[i].trim();
                 input_array[i] = input_array[i].replaceAll("\n","");
-                //System.out.println("Token:" + i + "::" + input_array[i]+":EOT");
             }
             String filename = input_array[1];
-            System.out.print("TCP function\n");
 
             File tempFile = new File(filename);
             long fileSize = tempFile.length();
-            //System.out.println("File size = " + fileSize);
             String fSize = Long.toString(fileSize);
             int sizeOfFile = Integer.parseInt(fSize);
             out.writeUTF(fSize);
@@ -172,8 +168,7 @@ public class Client extends Thread {
                 totalRead += count;
                 remaining -= count;
                 out.write(buffer, 0, count);
-                transferPercent = ( totalRead / fileSize ) * 100;
-                transferPercent = (transferPercent / 2) * 2;
+                transferPercent = ( (totalRead * 100 )/ fileSize );
                 progress = displayBar(transferPercent);
                 System.out.print("Sending " + filename + " [" + progress + "] " + transferPercent + "%\r");
             }
@@ -182,12 +177,14 @@ public class Client extends Thread {
                 
         }
         catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
+            System.out.println("Exception in input/output");
         }
     }
 
     public void sendFileUDP (String command) {
         try {
+            socketUDP = new DatagramSocket(); // UDP socket to connect to server
             String[] input_array = command.split(" ");
             int size = input_array.length;
             for (int i=0; i<size; i++) {
@@ -195,7 +192,6 @@ public class Client extends Thread {
                 input_array[i] = input_array[i].replaceAll("\n","");
             }
             String filename = input_array[1];
-            System.out.print("UDP function\n");
 
             File tempFile = new File(filename);
             long fileSize = tempFile.length();
@@ -204,7 +200,6 @@ public class Client extends Thread {
             out.writeUTF(fSize);            // very important - sending file size via TCP
             long packetCount = (fileSize/4096) + 1;
 
-            //DatagramPacket sendPkt = new DatagramPacket(buffer, buffer.length, InetAddress.getByName("localhost"), peerUDP);
             fileIn = new FileInputStream(filename);
 
             byte[] buffer = new byte[4096];
@@ -214,31 +209,34 @@ public class Client extends Thread {
             long totalRead = 0;
             long remaining = fileSize;
 
-            while ((count = fileIn.read(buffer)) > 0) {
+            DatagramPacket sendPkt = new DatagramPacket(buffer, buffer.length, InetAddress.getByName("localhost"), peerUDP);
+            
+            for(long i = 0; i < packetCount; i++) {
+                count = fileIn.read(buffer);
                 totalRead += count;
                 remaining -= count;
-                DatagramPacket sendPkt = new DatagramPacket(buffer, buffer.length, InetAddress.getByName("localhost"), peerUDP);
                 socketUDP.send(sendPkt);
-                transferPercent = ( totalRead / fileSize ) * 100;
-                transferPercent = (transferPercent / 2) * 2;
+                transferPercent = ((totalRead * 100) / fileSize );
+                if (transferPercent > 100) transferPercent = 100;                   
                 progress = displayBar(transferPercent);
                 System.out.print("Sending " + filename + " [" + progress + "] " + transferPercent + "%\r");
             }
-            System.out.println("\nSent file");            
+
+            System.out.println("\nSent file");
             fileIn.close();
+            socketUDP.close();
                 
         }
         catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
+            System.out.println("Error in input/output");
+            socketUDP.close();
         }
-
-        System.out.println("Sent file");
     }
 
     public String displayBar (long value) {
         int fraction = (int) value/10;
         String display = ">          ";
-        //int remainder = value%10;
         switch (fraction) {
             case 0: display = ">          ";
                 break;
@@ -263,6 +261,7 @@ public class Client extends Thread {
             case 10:display = "==========>";
                 break;
         }
+        if (fraction > 10) display = "==========>";
         return display;
     }
 }
