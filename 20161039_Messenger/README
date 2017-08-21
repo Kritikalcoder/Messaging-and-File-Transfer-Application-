@@ -1,0 +1,27 @@
+To compile: (in this order)
+>>javac Client.java
+>>javac Server.java
+>>Javac Peer.java
+
+The folder will then have the corresponding "*.class" files.
+
+To run:
+Open two terminals T1 and T2.
+T1:~/Alice$ java Peer <portSelfTCP> <portFriendTCP> <username> <friendname>	<portSelfUDP> <portFriendUDP> ( Command line arguments )
+T2:~/Bob$ java Peer <portSelfTCP> <portFriendTCP> <username> <friendname> <portSelfUDP> <portFriendUDP>	( Command line arguments )
+Execute one instance of the Peer program from different directories to verify File transfer.
+
+For example,
+T1: java Peer 5000 6000 Alice Bob 7000 8000
+T2: java Peer 6000 5000 Bob Alice 8000 7000
+
+FEATURES IMPLEMENTED:
+Wait for upto ten seconds for both systems to connect to the other, independently. Once both systems connect, use the following functionality.
+Messaging: Type your message at a prompt (>>) and it will appear as a sent message on your friend's prompt.
+File transfer:
+1. TCP:
+Format: Sending <filename> TCP
+2. UDP:
+Format: Sending <filename> UDP
+3. End the conversation seperately, by sending the keyword "Over".
+4. Handles file transfer of all kinds of files as transfer happens via bytes.
